@@ -7,34 +7,37 @@ import (
 
 const cmdPrefix = "!"
 
-type DiscordBot struct {
-	session   *discordgo.Session
-	cmdRouter *dgc.Router
+type CommandProcessor interface {
+	RegisterCommands(cmdRouter *dgc.Router)
 }
 
-func onlyRoles(next dgc.ExecutionHandler, roles []string) dgc.ExecutionHandler {
+type DiscordBot struct {
+	Session   *discordgo.Session
+	CmdRouter *dgc.Router
+}
+
+func restrictRolesMiddleware(next dgc.ExecutionHandler) dgc.ExecutionHandler {
 	return func(ctx *dgc.Ctx) {
-		if ctx.Event.GuildID == "" {
-			ctx.RespondText("You do not have permission to perform this action.")
-			return
-		}
-		guildRoles, _ := ctx.Session.GuildRoles(ctx.Event.GuildID)
-		for _, role := range guildRoles {
+		for _, allowedRoleId := range ctx.Command.Flags {
 			for _, roleId := range ctx.Event.Member.Roles {
-				if roleId == role.ID {
+				if roleId == allowedRoleId {
 					next(ctx)
 					return
 				}
 			}
 		}
+		ctx.RespondText("You do not have permission to perform this action.")
 	}
 }
 
-func (bot *DiscordBot) RegisterCmd(cmd *dgc.Command, roles []string) {
-	if len(roles) > 0 {
-		cmd.Handler = onlyRoles(cmd.Handler, roles)
+func (bot *DiscordBot) RegisterCommand(cmds ...*dgc.Command) {
+	for _, cmd := range cmds {
+		bot.CmdRouter.RegisterCmd(cmd)
 	}
-	bot.cmdRouter.RegisterCmd(cmd)
+}
+
+func (bot *DiscordBot) AddProcessor(processor CommandProcessor) {
+	processor.RegisterCommands(bot.CmdRouter)
 }
 
 func NewDiscordBot(botToken string, channelId string) (*DiscordBot, error) {
@@ -46,16 +49,18 @@ func NewDiscordBot(botToken string, channelId string) (*DiscordBot, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmdRouter := dgc.Create(&dgc.Router{
+	cmdRouter := &dgc.Router{
 		Prefixes: []string{cmdPrefix},
-	})
+		Storage:  make(map[string]*dgc.ObjectsMap),
+	}
 	return &DiscordBot{
-		session:   botSession,
-		cmdRouter: cmdRouter,
+		Session:   botSession,
+		CmdRouter: cmdRouter,
 	}, nil
 }
 
 func (bot *DiscordBot) Run() {
-	bot.cmdRouter.RegisterDefaultHelpCommand(bot.session, nil)
-	bot.cmdRouter.Initialize(bot.session)
+	bot.CmdRouter.RegisterMiddleware(restrictRolesMiddleware)
+	bot.CmdRouter.RegisterDefaultHelpCommand(bot.Session, nil)
+	bot.CmdRouter.Initialize(bot.Session)
 }

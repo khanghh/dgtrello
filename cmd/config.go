@@ -13,8 +13,10 @@ const (
 type AppConfig struct {
 	CmdPrefix     string   `json:"cmdPrefix"`
 	DiscordToken  string   `json:"discordToken"`
-	ServerId      string   `json:"serverId"`
-	ChannelId     string   `json:"channelId"`
+	AdminRoles    []string `json:"adminRoles"`
+	ServerID      string   `json:"serverID"`
+	boardIDs      []string `json:"boardIDs"`
+	ChannelID     string   `json:"channelID"`
 	PollInterval  int      `json:"pollInterval"`
 	EnabledEvents []string `json:"enabledEvents"`
 }

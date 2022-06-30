@@ -1,13 +1,15 @@
 package main
 
 import (
+	"dgtrello/internal/command"
 	"dgtrello/internal/discordbot"
 	"dgtrello/internal/logger"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/jessevdk/go-flags"
-	"github.com/lus/dgc"
 )
 
 type CommandOptions struct {
@@ -35,7 +37,20 @@ func main() {
 			log.Fatalln(err)
 		}
 	}
-	bot := discordbot.DiscordBot{}
-	bot.RegisterCmd(&dgc.Command{}, nil)
+
+	conf := MustLoadConfig()
+	trelloProc, _ := command.NewTrelloCommandProcessor(conf.AdminRoles)
+	bot, err := discordbot.NewDiscordBot(conf.DiscordToken, conf.ChannelID)
+	if err != nil {
+		log.Fatalln("Could not initialize discord bot.")
+	}
+	bot.AddProcessor(trelloProc)
 	bot.Run()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
+	defer func() {
+		<-sigCh
+		os.Exit(1)
+	}()
 }
