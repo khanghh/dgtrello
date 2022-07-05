@@ -1,0 +1,10 @@
+{
+  "cmdPrefix": "!",
+  "discordToken": "<Your discord bot's token>",
+  "adminRoles": [],
+  "serverID": "<Your server ID>",
+  "channelID": "<Your channel ID>",
+  "boardIDs": [],
+  "pollInterval": 1000,
+  "enabledEvents": []
+}

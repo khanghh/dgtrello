@@ -15,8 +15,8 @@ type AppConfig struct {
 	DiscordToken  string   `json:"discordToken"`
 	AdminRoles    []string `json:"adminRoles"`
 	ServerID      string   `json:"serverID"`
-	boardIDs      []string `json:"boardIDs"`
 	ChannelID     string   `json:"channelID"`
+	BoardIDs      []string `json:"boardIDs"`
 	PollInterval  int      `json:"pollInterval"`
 	EnabledEvents []string `json:"enabledEvents"`
 }
