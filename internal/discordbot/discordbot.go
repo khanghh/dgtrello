@@ -5,7 +5,7 @@ import (
 	"github.com/lus/dgc"
 )
 
-const cmdPrefix = "!"
+const defaultCmdPrefix = "!"
 
 type CommandProcessor interface {
 	RegisterCommands(cmdRouter *dgc.Router)
@@ -14,20 +14,8 @@ type CommandProcessor interface {
 type DiscordBot struct {
 	Session   *discordgo.Session
 	CmdRouter *dgc.Router
-}
-
-func restrictRolesMiddleware(next dgc.ExecutionHandler) dgc.ExecutionHandler {
-	return func(ctx *dgc.Ctx) {
-		for _, allowedRoleId := range ctx.Command.Flags {
-			for _, roleId := range ctx.Event.Member.Roles {
-				if roleId == allowedRoleId {
-					next(ctx)
-					return
-				}
-			}
-		}
-		ctx.RespondText("You do not have permission to perform this action.")
-	}
+	serverId  string
+	channelId string
 }
 
 func (bot *DiscordBot) RegisterCommand(cmds ...*dgc.Command) {
@@ -40,7 +28,11 @@ func (bot *DiscordBot) AddProcessor(processor CommandProcessor) {
 	processor.RegisterCommands(bot.CmdRouter)
 }
 
-func NewDiscordBot(botToken string, channelId string) (*DiscordBot, error) {
+func (bot *DiscordBot) SetCmdPrefix(cmdPrefix string) {
+	bot.CmdRouter.Prefixes = []string{cmdPrefix}
+}
+
+func NewDiscordBot(botToken string, serverId string, channelId string) (*DiscordBot, error) {
 	botSession, err := discordgo.New("Bot " + botToken)
 	if err != nil {
 		return nil, err
@@ -50,12 +42,14 @@ func NewDiscordBot(botToken string, channelId string) (*DiscordBot, error) {
 		return nil, err
 	}
 	cmdRouter := &dgc.Router{
-		Prefixes: []string{cmdPrefix},
+		Prefixes: []string{defaultCmdPrefix},
 		Storage:  make(map[string]*dgc.ObjectsMap),
 	}
 	return &DiscordBot{
 		Session:   botSession,
 		CmdRouter: cmdRouter,
+		serverId:  serverId,
+		channelId: channelId,
 	}, nil
 }
 

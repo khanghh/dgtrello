@@ -40,10 +40,11 @@ func main() {
 
 	conf := MustLoadConfig()
 	trelloProc, _ := command.NewTrelloCommandProcessor(conf.AdminRoles)
-	bot, err := discordbot.NewDiscordBot(conf.DiscordToken, conf.ChannelID)
+	bot, err := discordbot.NewDiscordBot(conf.DiscordToken, conf.ServerID, conf.ChannelID)
 	if err != nil {
 		log.Fatalln("Could not initialize discord bot.")
 	}
+	bot.SetCmdPrefix(conf.CmdPrefix)
 	bot.AddProcessor(trelloProc)
 	bot.Run()
 

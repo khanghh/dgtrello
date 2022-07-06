@@ -7,18 +7,8 @@ import (
 )
 
 type TrelloCmdProcessor struct {
+	allowedRoleIds []string
 }
-
-// Name        string
-// Aliases     []string
-// Description string
-// Usage       string
-// Example     string
-// Flags       []string
-// IgnoreCase  bool
-// SubCommands []*Command
-// RateLimiter RateLimiter
-// Handler     ExecutionHandler
 
 func (tp *TrelloCmdProcessor) testHandler(ctx *dgc.Ctx) {
 	fmt.Println("guildId: ", ctx.Event.GuildID)
@@ -29,17 +19,19 @@ func (tp *TrelloCmdProcessor) testHandler(ctx *dgc.Ctx) {
 	ctx.RespondText("OK")
 }
 
-func (tp *TrelloCmdProcessor) RegisterCommands(cmdRouter *dgc.Router) {
+func (cp *TrelloCmdProcessor) RegisterCommands(cmdRouter *dgc.Router) {
 	cmdRouter.RegisterCmd(&dgc.Command{
 		Name:        "test",
 		Description: "Test command",
 		Usage:       "test abc def",
 		Example:     "test 123 456",
-		Flags:       []string{"Admin"},
-		Handler:     tp.testHandler,
+		Flags:       cp.allowedRoleIds,
+		Handler:     cp.testHandler,
 	})
 }
 
 func NewTrelloCommandProcessor(roles []string) (*TrelloCmdProcessor, error) {
-	return &TrelloCmdProcessor{}, nil
+	return &TrelloCmdProcessor{
+		allowedRoleIds: roles,
+	}, nil
 }
