@@ -18,6 +18,11 @@ func init() {
 	AppName = "Trello Bot"
 	OsArch = runtime.GOOS + "/" + runtime.GOARCH
 }
+
+func printGreeting() {
+	fmt.Println(AppName, Version)
+}
+
 func printVersion() {
 	fmt.Println(AppName)
 	fmt.Printf(" Version:\t%s\n", Version)

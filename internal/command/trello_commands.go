@@ -1,13 +1,15 @@
 package command
 
 import (
+	"dgtrello/internal/trello"
 	"fmt"
 
 	"github.com/lus/dgc"
 )
 
 type TrelloCmdProcessor struct {
-	allowedRoleIds []string
+	allowedRoles []string
+	listeners    []*trello.TrelloListener
 }
 
 func (tp *TrelloCmdProcessor) testHandler(ctx *dgc.Ctx) {
@@ -25,13 +27,13 @@ func (cp *TrelloCmdProcessor) RegisterCommands(cmdRouter *dgc.Router) {
 		Description: "Test command",
 		Usage:       "test abc def",
 		Example:     "test 123 456",
-		Flags:       cp.allowedRoleIds,
+		Flags:       cp.allowedRoles,
 		Handler:     cp.testHandler,
 	})
 }
 
 func NewTrelloCommandProcessor(roles []string) (*TrelloCmdProcessor, error) {
 	return &TrelloCmdProcessor{
-		allowedRoleIds: roles,
+		allowedRoles: roles,
 	}, nil
 }

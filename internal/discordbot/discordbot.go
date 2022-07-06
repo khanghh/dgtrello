@@ -14,8 +14,6 @@ type CommandProcessor interface {
 type DiscordBot struct {
 	Session   *discordgo.Session
 	CmdRouter *dgc.Router
-	serverId  string
-	channelId string
 }
 
 func (bot *DiscordBot) RegisterCommand(cmds ...*dgc.Command) {
@@ -32,7 +30,7 @@ func (bot *DiscordBot) SetCmdPrefix(cmdPrefix string) {
 	bot.CmdRouter.Prefixes = []string{cmdPrefix}
 }
 
-func NewDiscordBot(botToken string, serverId string, channelId string) (*DiscordBot, error) {
+func NewDiscordBot(botToken string) (*DiscordBot, error) {
 	botSession, err := discordgo.New("Bot " + botToken)
 	if err != nil {
 		return nil, err
@@ -48,8 +46,6 @@ func NewDiscordBot(botToken string, serverId string, channelId string) (*Discord
 	return &DiscordBot{
 		Session:   botSession,
 		CmdRouter: cmdRouter,
-		serverId:  serverId,
-		channelId: channelId,
 	}, nil
 }
 

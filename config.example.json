@@ -1,10 +1,16 @@
 {
   "cmdPrefix": "!",
-  "discordToken": "<Your discord bot's token>",
+  "discordToken": "<Your discord bot token>",
   "adminRoles": [],
-  "serverID": "<Your server ID>",
-  "channelID": "<Your channel ID>",
-  "boardIDs": [],
+  "trelloApiKey": "<Your trello api key>",
+  "trelloToken": "<Your trello auth token>",
   "pollInterval": 1000,
-  "enabledEvents": []
+  "listeners": [
+    {
+      "serverID": "<Your server ID>",
+      "channelID": "<Your channel ID>",
+      "boardIDs": [],
+      "enabledEvents": []
+    }
+  ]
 }
