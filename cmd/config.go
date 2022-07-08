@@ -11,10 +11,10 @@ const (
 )
 
 type ListenerConfig struct {
-	ServerID      string   `json:"serverID"`
-	ChannelID     string   `json:"channelID"`
-	BoardIDs      []string `json:"boardIDs"`
-	EnabledEvents []string `json:"enabledEvents"`
+	ChannelId      string   `json:"channelId"`
+	BoardId        string   `json:"boardId"`
+	EnabledEvents  []string `json:"enabledEvents"`
+	LastActivityId string   `json:"lastActivityId"`
 }
 
 type AppConfig struct {

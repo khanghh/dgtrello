@@ -1,14 +1,16 @@
 package main
 
 import (
-	"dgtrello/internal/command"
+	"context"
 	"dgtrello/internal/discordbot"
 	"dgtrello/internal/logger"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/adlio/trello"
 	"github.com/jessevdk/go-flags"
 )
 
@@ -38,21 +40,30 @@ func main() {
 		}
 	}
 
-	conf := MustLoadConfig()
-	trelloProc, _ := command.NewTrelloCommandProcessor(conf.AdminRoles)
-	bot, err := discordbot.NewDiscordBot(conf.DiscordToken)
-	if err != nil {
-		log.Fatalln("Could not initialize discord bot.")
-	}
-	bot.SetCmdPrefix(conf.CmdPrefix)
-	bot.AddProcessor(trelloProc)
-	bot.Run()
-	printGreeting()
-
+	ctx, cancel := context.WithCancel(context.Background())
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
-	defer func() {
+	go func() {
 		<-sigCh
+		cancel()
 		os.Exit(1)
 	}()
+
+	conf := MustLoadConfig()
+	//TODO remove hardcocded config file
+	trelloClient := trello.NewClient(conf.TrelloApiKey, conf.TrelloToken)
+	pollInterval := time.Duration(conf.PollInterval) * time.Millisecond
+	trelloProc, err := discordbot.NewTrelloCommandProcessor("config.json", trelloClient, pollInterval)
+	if err != nil {
+		logger.Fatalln("Cout not initialize trello command.")
+	}
+	trelloProc.SetAllowedRoles(conf.AdminRoles)
+	bot, err := discordbot.NewDiscordBot(conf.DiscordToken)
+	if err != nil {
+		logger.Fatalln("Could not initialize discord bot.")
+	}
+	bot.SetCmdPrefix(conf.CmdPrefix)
+	bot.AddCommandProcessor(trelloProc)
+	printGreeting()
+	bot.Run(ctx)
 }

@@ -7,9 +7,8 @@
   "pollInterval": 1000,
   "listeners": [
     {
-      "serverID": "<Your server ID>",
-      "channelID": "<Your channel ID>",
-      "boardIDs": [],
+      "channelId": "<Your channel Id>",
+      "boardId": "<Trello board id to listen>",
       "enabledEvents": []
     }
   ]
