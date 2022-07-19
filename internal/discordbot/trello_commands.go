@@ -30,6 +30,9 @@ type TrelloChannel struct {
 	LastActivityId string   `json:"lastActivityId"`
 }
 
+func (ch *TrelloChannel) ProcessEvent(action *trello.Action) {
+}
+
 type TrelloCmdProcessor struct {
 	allowedRoles []string
 	configFile   string
@@ -83,44 +86,41 @@ func (tp *TrelloCmdProcessor) startPolling(ctx context.Context) {
 	}
 }
 
-func (tp *TrelloCmdProcessor) listenBoardHandler(ctx *dgc.Ctx) {
+func (tp *TrelloCmdProcessor) watchBoardHandler(ctx *dgc.Ctx) {
 	argsBoardId := ctx.Arguments.Get(0)
 	fmt.Println(argsBoardId.Raw())
 	ctx.RespondText("OK")
 }
 
-func (cp *TrelloCmdProcessor) stopListenBoardHandler(ctx *dgc.Ctx) {
+func (cp *TrelloCmdProcessor) stopWatchBoardHandler(ctx *dgc.Ctx) {
 	ctx.RespondText("OK!")
 }
 
 func (cp *TrelloCmdProcessor) RegisterCommands(cmdRouter *dgc.Router) {
 	cmdRouter.RegisterCmd(&dgc.Command{
 		Name:        "trello",
-		Description: "Trello command",
-		Usage:       "!trello listen/stop",
+		Description: "Bot commands for trello",
 		SubCommands: []*dgc.Command{
 			{
-				Name:        "listen",
-				Description: "Listen a board",
-				Usage:       "!trello listen <boardId>",
-				Handler:     cp.listenBoardHandler,
+				Name:        "watch",
+				Description: "Watch a board",
+				Usage:       "trello watch <boardId>",
+				Handler:     cp.watchBoardHandler,
 			},
 			{
 				Name:        "stop",
-				Description: "Stop listen current board",
-				Usage:       "!trello stop",
-				Handler:     cp.stopListenBoardHandler,
+				Description: "Stop watching current board",
+				Usage:       "trello stop",
+				Handler:     cp.stopWatchBoardHandler,
 			},
 		},
-		Flags:   cp.allowedRoles,
-		Handler: cp.listenBoardHandler,
+		Flags: cp.allowedRoles,
 	})
 }
 
 func (cp *TrelloCmdProcessor) OnStartBot(session *discordgo.Session) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cp.cancelCtx = cancel
-
 	go cp.startPolling(ctx)
 }
 
