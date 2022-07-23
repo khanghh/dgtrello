@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"dgtrello/internal/commands"
+	"dgtrello/internal/core"
 	"dgtrello/internal/discordbot"
 	"dgtrello/internal/logger"
 	"log"
@@ -53,7 +55,8 @@ func main() {
 	//TODO remove hardcocded config file
 	trelloClient := trello.NewClient(conf.TrelloApiKey, conf.TrelloToken)
 	pollInterval := time.Duration(conf.PollInterval) * time.Millisecond
-	trelloProc, err := discordbot.NewTrelloCommandProcessor("config.json", trelloClient, pollInterval)
+	trelloEventHub := core.NewTrelloEventHub(trelloClient, pollInterval)
+	trelloProc, err := commands.NewTrelloCommandProcessor("config.json", trelloEventHub)
 	if err != nil {
 		logger.Fatalln("Cout not initialize trello command.")
 	}

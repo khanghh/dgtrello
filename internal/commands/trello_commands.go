@@ -1,12 +1,11 @@
-package discordbot
+package commands
 
 import (
 	"context"
-	"dgtrello/internal/logger"
+	"dgtrello/internal/core"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"time"
 
 	"github.com/adlio/trello"
 	"github.com/bwmarrin/discordgo"
@@ -24,22 +23,21 @@ const (
 )
 
 type TrelloChannel struct {
-	ChannelId      string   `json:"channelId"`
-	BoardId        string   `json:"boardId"`
-	EnabledEvents  []string `json:"enabledEvents"`
-	LastActivityId string   `json:"lastActivityId"`
+	botSession    *discordgo.Session
+	ChannelId     string   `json:"channelId"`
+	BoardId       string   `json:"boardId"`
+	EnabledEvents []string `json:"enabledEvents"`
+	LastActionId  string   `json:"lastActionId"`
 }
 
-func (ch *TrelloChannel) ProcessEvent(action *trello.Action) {
+func (ch *TrelloChannel) OnTrelloEvent(action *trello.Action) {
 }
 
 type TrelloCmdProcessor struct {
 	allowedRoles []string
 	configFile   string
 	channels     []*TrelloChannel
-	pollInterval time.Duration
-	trelloClient *trello.Client
-	botSession   *discordgo.Session
+	eventHub     *core.TrelloEventHub
 	cancelCtx    context.CancelFunc
 }
 
@@ -58,42 +56,33 @@ func loadChannelConfig(configFile string) ([]*TrelloChannel, error) {
 	return configData.Channels, nil
 }
 
-func (tp *TrelloCmdProcessor) pollBoardEvents(boardChannel *TrelloChannel) {
-	for _, channel := range tp.channels {
-		board := trello.Board{ID: channel.BoardId}
-		board.SetClient(tp.trelloClient)
-		actions, err := board.GetActions(trello.Defaults(), trello.Defaults())
-		if err != nil {
-			logger.Errorln("Could not get board actions. boardId:", board.ID)
-			continue
-		}
-		for _, action := range actions {
-			fmt.Printf("%s: %s\n", action.ID, action.Type)
-		}
-	}
-}
-
-func (tp *TrelloCmdProcessor) startPolling(ctx context.Context) {
-	for {
-		select {
-		case <-time.After(tp.pollInterval):
-			for _, trelloChannel := range tp.channels {
-				tp.pollBoardEvents(trelloChannel)
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
 func (tp *TrelloCmdProcessor) watchBoardHandler(ctx *dgc.Ctx) {
-	argsBoardId := ctx.Arguments.Get(0)
-	fmt.Println(argsBoardId.Raw())
+	argBoardId := ctx.Arguments.Get(0)
+	boardId := argBoardId.Raw()
+	_, err := tp.eventHub.Client.GetBoard(boardId, trello.Defaults())
+	if err != nil {
+		ctx.RespondText(fmt.Sprintf("Could not find board %s", boardId))
+		return
+	}
+	trelloChannel := &TrelloChannel{
+		botSession: ctx.Session,
+		ChannelId:  ctx.Event.ChannelID,
+		BoardId:    boardId,
+	}
+	tp.eventHub.Subscribe(boardId, trelloChannel)
 	ctx.RespondText("OK")
 }
 
 func (cp *TrelloCmdProcessor) stopWatchBoardHandler(ctx *dgc.Ctx) {
-	ctx.RespondText("OK!")
+	channelId := ctx.Event.ChannelID
+	for _, channel := range cp.channels {
+		if channel.ChannelId == channelId {
+			cp.eventHub.Unsubscribe(channel.BoardId)
+			ctx.RespondText("OK!")
+			return
+		}
+	}
+	ctx.RespondText("No board is watching")
 }
 
 func (cp *TrelloCmdProcessor) RegisterCommands(cmdRouter *dgc.Router) {
@@ -121,7 +110,7 @@ func (cp *TrelloCmdProcessor) RegisterCommands(cmdRouter *dgc.Router) {
 func (cp *TrelloCmdProcessor) OnStartBot(session *discordgo.Session) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cp.cancelCtx = cancel
-	go cp.startPolling(ctx)
+	go cp.eventHub.StartListening(ctx)
 }
 
 func (cp *TrelloCmdProcessor) OnStopBot() {
@@ -132,15 +121,14 @@ func (cp *TrelloCmdProcessor) SetAllowedRoles(roles []string) {
 	cp.allowedRoles = roles
 }
 
-func NewTrelloCommandProcessor(configFile string, trelloClient *trello.Client, pollInterval time.Duration) (*TrelloCmdProcessor, error) {
+func NewTrelloCommandProcessor(configFile string, trelloEventHub *core.TrelloEventHub) (*TrelloCmdProcessor, error) {
 	trelloChannels, err := loadChannelConfig(configFile)
 	if err != nil {
 		return nil, err
 	}
 	return &TrelloCmdProcessor{
-		configFile:   configFile,
-		trelloClient: trelloClient,
-		pollInterval: pollInterval,
-		channels:     trelloChannels,
+		configFile: configFile,
+		eventHub:   trelloEventHub,
+		channels:   trelloChannels,
 	}, nil
 }

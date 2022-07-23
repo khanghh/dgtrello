@@ -15,9 +15,6 @@ type CommandProcessor interface {
 	OnStopBot()
 }
 
-type Ctx struct {
-}
-
 type DiscordBot struct {
 	Session       *discordgo.Session
 	CmdRouter     *dgc.Router

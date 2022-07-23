@@ -13,7 +13,7 @@ type TrelloEventListener interface {
 }
 
 type TrelloEventHub struct {
-	client       *trello.Client
+	Client       *trello.Client
 	pollInterval time.Duration
 	listeners    map[string]TrelloEventListener
 }
@@ -29,8 +29,8 @@ func (hub *TrelloEventHub) Unsubscribe(idModel string) {
 func (hub *TrelloEventHub) pollEvents() {
 	for boardId, listener := range hub.listeners {
 		board := trello.Board{ID: boardId}
-		board.SetClient(hub.client)
-		actions, err := board.GetActions(trello.Defaults(), trello.Defaults())
+		board.SetClient(hub.Client)
+		actions, err := board.GetActions(trello.Defaults())
 		if err != nil {
 			logger.Errorln("Could not get board actions. boardId:", board.ID)
 			continue
@@ -54,7 +54,7 @@ func (hub *TrelloEventHub) StartListening(ctx context.Context) {
 
 func NewTrelloEventHub(client *trello.Client, pollInterval time.Duration) *TrelloEventHub {
 	return &TrelloEventHub{
-		client:       client,
+		Client:       client,
 		pollInterval: pollInterval,
 	}
 }
