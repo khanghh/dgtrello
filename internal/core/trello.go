@@ -56,5 +56,6 @@ func NewTrelloEventHub(client *trello.Client, pollInterval time.Duration) *Trell
 	return &TrelloEventHub{
 		Client:       client,
 		pollInterval: pollInterval,
+		listeners:    map[string]TrelloEventListener{},
 	}
 }

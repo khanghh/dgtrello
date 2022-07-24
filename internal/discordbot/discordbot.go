@@ -2,6 +2,8 @@ package discordbot
 
 import (
 	"context"
+	"dgtrello/internal/logger"
+	"reflect"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/lus/dgc"
@@ -11,7 +13,7 @@ const defaultCmdPrefix = "!"
 
 type CommandProcessor interface {
 	RegisterCommands(cmdRouter *dgc.Router)
-	OnStartBot(session *discordgo.Session)
+	OnStartBot(session *discordgo.Session) error
 	OnStopBot()
 }
 
@@ -63,12 +65,13 @@ func (bot *DiscordBot) Run(ctx context.Context) {
 	bot.CmdRouter.Initialize(bot.Session)
 
 	for _, processor := range bot.cmdProcessors {
-		processor.OnStartBot(bot.Session)
-	}
-	defer func() {
-		<-ctx.Done()
-		for _, processor := range bot.cmdProcessors {
-			processor.OnStopBot()
+		err := processor.OnStartBot(bot.Session)
+		if err != nil {
+			logger.Errorln("Could not initialize plugin", reflect.TypeOf(processor), err)
 		}
-	}()
+	}
+	<-ctx.Done()
+	for _, processor := range bot.cmdProcessors {
+		processor.OnStopBot()
+	}
 }
