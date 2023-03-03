@@ -17,6 +17,7 @@ import (
 )
 
 type CommandOptions struct {
+	Config  string     `short:"c" long:"config" description:"JSON config file"`
 	Version VersionCmd `command:"version" description:"Prints version information"`
 }
 
@@ -51,12 +52,14 @@ func main() {
 		os.Exit(1)
 	}()
 
-	conf := MustLoadConfig()
-	//TODO remove hardcocded config file
+	if len(opts.Config) == 0 {
+		opts.Config = defaultConfigFile
+	}
+	conf := MustLoadConfig(opts.Config)
 	trelloClient := trello.NewClient(conf.TrelloApiKey, conf.TrelloToken)
 	pollInterval := time.Duration(conf.PollInterval) * time.Millisecond
 	trelloEventHub := core.NewTrelloEventHub(trelloClient, pollInterval)
-	trelloProc, err := commands.NewTrelloCommandProcessor("config.json", trelloEventHub)
+	trelloProc, err := commands.NewTrelloCommandProcessor(opts.Config, trelloEventHub)
 	if err != nil {
 		logger.Fatalln("Cout not initialize trello command.")
 	}

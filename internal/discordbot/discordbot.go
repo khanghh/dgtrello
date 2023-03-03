@@ -37,27 +37,8 @@ func (bot *DiscordBot) SetCmdPrefix(cmdPrefix string) {
 	bot.CmdRouter.Prefixes = []string{cmdPrefix}
 }
 
-func NewDiscordBot(botToken string) (*DiscordBot, error) {
-	botSession, err := discordgo.New("Bot " + botToken)
-	if err != nil {
-		return nil, err
-	}
-	err = botSession.Open()
-	if err != nil {
-		return nil, err
-	}
-	cmdRouter := &dgc.Router{
-		Prefixes: []string{defaultCmdPrefix},
-		Storage:  make(map[string]*dgc.ObjectsMap),
-	}
-	return &DiscordBot{
-		Session:   botSession,
-		CmdRouter: cmdRouter,
-	}, nil
-}
-
 func (bot *DiscordBot) Run(ctx context.Context) {
-	bot.CmdRouter.RegisterMiddleware(restrictRolesMiddleware)
+	// bot.CmdRouter.RegisterMiddleware(restrictRolesMiddleware)
 	for _, processor := range bot.cmdProcessors {
 		processor.RegisterCommands(bot.CmdRouter)
 	}
@@ -74,4 +55,24 @@ func (bot *DiscordBot) Run(ctx context.Context) {
 	for _, processor := range bot.cmdProcessors {
 		processor.OnStopBot()
 	}
+}
+
+func NewDiscordBot(botToken string) (*DiscordBot, error) {
+	botSession, err := discordgo.New("Bot " + botToken)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = botSession.Open(); err != nil {
+		return nil, err
+	}
+
+	cmdRouter := &dgc.Router{
+		Prefixes: []string{defaultCmdPrefix},
+		Storage:  make(map[string]*dgc.ObjectsMap),
+	}
+	return &DiscordBot{
+		Session:   botSession,
+		CmdRouter: cmdRouter,
+	}, nil
 }

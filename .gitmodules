@@ -1,0 +1,3 @@
+[submodule "pkg/dgc"]
+	path = pkg/dgc
+	url = git@github.com:khanghh/dgc.git

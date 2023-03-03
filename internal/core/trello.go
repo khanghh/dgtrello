@@ -3,27 +3,74 @@ package core
 import (
 	"context"
 	"dgtrello/internal/logger"
+	"errors"
 	"time"
 
 	"github.com/adlio/trello"
 )
 
-type TrelloEventListener interface {
-	OnTrelloEvent(action *trello.Action)
+const (
+	EventCreateCard  = "createCard"
+	EventCopyCard    = "copyCard"
+	EventCommentCard = "commentCard"
+	EventDeleteCard  = "deleteCard"
+	EventUpdateCard  = "updateCard"
+)
+
+var (
+	ErrAlreadySubscribe = errors.New("already subscribe")
+	ErrNoEventListener  = errors.New("event listener not found")
+)
+
+type TrelloEventHandler func(ctx *TrelloEventCtx, action *trello.Action)
+
+type TrelloEventCtx struct {
+	IdModel       string
+	EnabledEvents []string
+	LastActionId  string
+}
+
+type TrelloEventListener struct {
+	*TrelloEventCtx
+	Handler TrelloEventHandler
 }
 
 type TrelloEventHub struct {
 	Client       *trello.Client
 	pollInterval time.Duration
-	listeners    map[string]TrelloEventListener
+	listeners    map[string]*TrelloEventListener
 }
 
-func (hub *TrelloEventHub) Subscribe(idModel string, listener TrelloEventListener) {
-	hub.listeners[idModel] = listener
+func (hub *TrelloEventHub) GetListener(idModel string) *TrelloEventListener {
+	return hub.listeners[idModel]
+}
+
+func (hub *TrelloEventHub) Subscribe(idModel string, events []string, lastActionId string, handler TrelloEventHandler) (*TrelloEventListener, error) {
+	if listener, exist := hub.listeners[idModel]; exist {
+		return listener, ErrAlreadySubscribe
+	}
+	hub.listeners[idModel] = &TrelloEventListener{
+		TrelloEventCtx: &TrelloEventCtx{
+			IdModel:       idModel,
+			EnabledEvents: events,
+			LastActionId:  lastActionId,
+		},
+		Handler: handler,
+	}
+	return hub.listeners[idModel], nil
 }
 
 func (hub *TrelloEventHub) Unsubscribe(idModel string) {
 	delete(hub.listeners, idModel)
+}
+
+func arrayContains(arr []string, str string) bool {
+	for _, item := range arr {
+		if item == str {
+			return true
+		}
+	}
+	return false
 }
 
 func (hub *TrelloEventHub) pollEvents() {
@@ -36,12 +83,17 @@ func (hub *TrelloEventHub) pollEvents() {
 			continue
 		}
 		for _, action := range actions {
-			listener.OnTrelloEvent(action)
+			if arrayContains(listener.EnabledEvents, action.Type) {
+				if listener.Handler != nil {
+					listener.Handler(listener.TrelloEventCtx, action)
+					listener.TrelloEventCtx.LastActionId = action.ID
+				}
+			}
 		}
 	}
 }
 
-func (hub *TrelloEventHub) StartListening(ctx context.Context) {
+func (hub *TrelloEventHub) Run(ctx context.Context) {
 	for {
 		select {
 		case <-time.After(hub.pollInterval):
@@ -56,6 +108,6 @@ func NewTrelloEventHub(client *trello.Client, pollInterval time.Duration) *Trell
 	return &TrelloEventHub{
 		Client:       client,
 		pollInterval: pollInterval,
-		listeners:    map[string]TrelloEventListener{},
+		listeners:    map[string]*TrelloEventListener{},
 	}
 }

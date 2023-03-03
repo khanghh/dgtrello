@@ -3,26 +3,21 @@ package commands
 import (
 	"context"
 	"dgtrello/internal/core"
+	"dgtrello/internal/logger"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
+	"sync"
 
 	"github.com/adlio/trello"
 	"github.com/bwmarrin/discordgo"
 	"github.com/lus/dgc"
 )
 
-type TrelloChannel struct {
-	botSession    *discordgo.Session
-	ChannelId     string   `json:"channelId"`
-	BoardId       string   `json:"boardId"`
-	EnabledEvents []string `json:"enabledEvents"`
-	LastActionId  string   `json:"lastActionId"`
-}
-
-func (ch *TrelloChannel) OnTrelloEvent(action *trello.Action) {
-	fmt.Println(action.Type)
-}
+var (
+	errAlreadyBind = errors.New("already bind")
+)
 
 type TrelloCmdProcessor struct {
 	botSession   *discordgo.Session
@@ -31,11 +26,12 @@ type TrelloCmdProcessor struct {
 	channels     map[string]*TrelloChannel
 	eventHub     *core.TrelloEventHub
 	cancelCtx    context.CancelFunc
+	mtx          sync.Mutex
 }
 
-func loadChannelConfig(configFile string) ([]*TrelloChannel, error) {
+func loadChannelConfig(configFile string) ([]*TrelloChannelConfig, error) {
 	type moduleConfig struct {
-		Channels []*TrelloChannel `json:"channels"`
+		Channels []*TrelloChannelConfig `json:"channels"`
 	}
 	buf, err := ioutil.ReadFile(configFile)
 	if err != nil {
@@ -48,22 +44,39 @@ func loadChannelConfig(configFile string) ([]*TrelloChannel, error) {
 	return configData.Channels, nil
 }
 
-func (cp *TrelloCmdProcessor) subscribeTrello(channel *TrelloChannel) {
-	channel.botSession = cp.botSession
-	cp.channels[channel.ChannelId] = channel
-
-	cp.eventHub.Subscribe(channel.BoardId, channel)
+func (cp *TrelloCmdProcessor) subscribeTrello(cfg *TrelloChannelConfig) error {
+	cp.mtx.Lock()
+	defer cp.mtx.Unlock()
+	if _, exist := cp.channels[cfg.ChannelId]; exist {
+		return errAlreadyBind
+	}
+	channel := &TrelloChannel{
+		channelId: cfg.ChannelId,
+		session:   cp.botSession,
+	}
+	listener, err := cp.eventHub.Subscribe(cfg.BoardId, cfg.EnabledEvents, cfg.LastActionId, channel.OnTrelloEvent)
+	if err != nil {
+		return err
+	}
+	channel.listener = listener
+	cp.channels[cfg.ChannelId] = channel
+	return nil
 }
 
 func (cp *TrelloCmdProcessor) unsubscribeTrello(channelId string) {
-	channel := cp.channels[channelId]
-	cp.eventHub.Unsubscribe(channel.BoardId)
+	cp.mtx.Lock()
+	defer cp.mtx.Unlock()
+	channel, exist := cp.channels[channelId]
+	if !exist {
+		return
+	}
+	cp.eventHub.Unsubscribe(channel.BoardId())
 	delete(cp.channels, channelId)
 }
 
 func (cp *TrelloCmdProcessor) getChannelByBoardId(boardId string) *TrelloChannel {
 	for _, channel := range cp.channels {
-		if channel.BoardId == boardId {
+		if channel.BoardId() == boardId {
 			return channel
 		}
 	}
@@ -78,24 +91,35 @@ func (cp *TrelloCmdProcessor) watchBoardHandler(ctx *dgc.Ctx) {
 		ctx.RespondText(fmt.Sprintf("Could not find board %s", boardId))
 		return
 	}
-	if channel := cp.getChannelByBoardId(boardId); channel != nil {
+	listener := cp.eventHub.GetListener(boardId)
+	if listener != nil {
 		ctx.RespondText(fmt.Sprintf("Already watching board %s", boardId))
 		return
 	}
-	cp.subscribeTrello(&TrelloChannel{
-		ChannelId: ctx.Event.ChannelID,
-		BoardId:   boardId,
-	})
-	ctx.RespondText("OK")
+	channelCfg := &TrelloChannelConfig{
+		BoardId: boardId,
+		EnabledEvents: []string{
+			core.EventCreateCard,
+			core.EventCopyCard,
+			core.EventCommentCard,
+			core.EventDeleteCard,
+			core.EventUpdateCard,
+		},
+		LastActionId: "",
+	}
+	if err := cp.subscribeTrello(channelCfg); err != nil {
+		ctx.RespondText(fmt.Sprintf("Failed to watch board events, see log for more detail. (boardId: %s)", boardId))
+		return
+	}
 }
 
 func (cp *TrelloCmdProcessor) stopWatchBoardHandler(ctx *dgc.Ctx) {
 	if channel, ok := cp.channels[ctx.Event.ChannelID]; ok {
-		cp.unsubscribeTrello(channel.ChannelId)
+		cp.unsubscribeTrello(channel.ChannelId())
 		ctx.RespondText("OK!")
 		return
 	}
-	ctx.RespondText("No board is watching")
+	ctx.RespondText("Not watching any board")
 }
 
 func (cp *TrelloCmdProcessor) RegisterCommands(cmdRouter *dgc.Router) {
@@ -125,14 +149,18 @@ func (cp *TrelloCmdProcessor) OnStartBot(session *discordgo.Session) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	cp.cancelCtx = cancel
 	cp.botSession = session
-	trelloChannels, err := loadChannelConfig(cp.configFile)
+	channelConfigs, err := loadChannelConfig(cp.configFile)
 	if err != nil {
 		return err
 	}
-	for _, channel := range trelloChannels {
-		cp.subscribeTrello(channel)
+	for _, conf := range channelConfigs {
+		if err := cp.subscribeTrello(conf); err != nil {
+			logger.Errorln(fmt.Sprintf("Failed to create trello channel. channelId: %s, boardId: %s", conf.ChannelId, conf.BoardId))
+			logger.Errorln(err)
+		}
+		logger.Printf("Listening events for board: %s, channel: %s", conf.BoardId, conf.ChannelId)
 	}
-	go cp.eventHub.StartListening(ctx)
+	go cp.eventHub.Run(ctx)
 	return nil
 }
 
@@ -144,10 +172,10 @@ func (cp *TrelloCmdProcessor) SetAllowedRoles(roles []string) {
 	cp.allowedRoles = roles
 }
 
-func NewTrelloCommandProcessor(configFile string, trelloEventHub *core.TrelloEventHub) (*TrelloCmdProcessor, error) {
+func NewTrelloCommandProcessor(channelCfg string, trelloEventHub *core.TrelloEventHub) (*TrelloCmdProcessor, error) {
 	return &TrelloCmdProcessor{
-		configFile: configFile,
+		configFile: channelCfg,
 		eventHub:   trelloEventHub,
-		channels:   map[string]*TrelloChannel{},
+		channels:   make(map[string]*TrelloChannel),
 	}, nil
 }

@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	configFileName = "config.json"
+	defaultConfigFile = "config.json"
 )
 
 type ListenerConfig struct {
@@ -27,8 +27,8 @@ type AppConfig struct {
 	Listeners    []ListenerConfig `json:"listeners"`
 }
 
-func loadConfig() (*AppConfig, error) {
-	buf, err := ioutil.ReadFile(configFileName)
+func loadConfig(cfgFile string) (*AppConfig, error) {
+	buf, err := ioutil.ReadFile(cfgFile)
 	if err != nil {
 		return nil, err
 	}
@@ -39,8 +39,8 @@ func loadConfig() (*AppConfig, error) {
 	return conf, nil
 }
 
-func MustLoadConfig() *AppConfig {
-	conf, err := loadConfig()
+func MustLoadConfig(cfgFile string) *AppConfig {
+	conf, err := loadConfig(cfgFile)
 	if err != nil {
 		log.Fatalln("Could not parse json config file.")
 	}
