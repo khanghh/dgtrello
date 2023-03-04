@@ -90,7 +90,6 @@ func Errorln(v ...any) {
 	if logLevel >= LevelError {
 		log.SetPrefix(ColorRed)
 		log.Print(prefixError+spaceElem, fmt.Sprintln(v...))
-		log.Println(v...)
 	}
 }
 

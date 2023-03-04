@@ -30,5 +30,5 @@ func (ch *TrelloChannel) ChannelId() string {
 }
 
 func (ch *TrelloChannel) OnTrelloEvent(ctx *core.TrelloEventCtx, action *trello.Action) {
-	fmt.Println(action.Type)
+	fmt.Printf("%s: %s\n", action.Type, action.ID)
 }

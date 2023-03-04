@@ -49,7 +49,6 @@ func main() {
 	go func() {
 		<-sigCh
 		cancel()
-		os.Exit(1)
 	}()
 
 	if len(opts.Config) == 0 {

@@ -41,6 +41,14 @@ type TrelloEventHub struct {
 	listeners    map[string]*TrelloEventListener
 }
 
+func (hub *TrelloEventHub) Listeners() []*TrelloEventListener {
+	ret := make([]*TrelloEventListener, 0)
+	for _, listener := range hub.listeners {
+		ret = append(ret, listener)
+	}
+	return ret
+}
+
 func (hub *TrelloEventHub) GetListener(idModel string) *TrelloEventListener {
 	return hub.listeners[idModel]
 }
@@ -80,10 +88,11 @@ func (hub *TrelloEventHub) pollEvents() {
 		actions, err := board.GetActions(trello.Defaults())
 		if err != nil {
 			logger.Errorln("Could not get board actions. boardId:", board.ID)
+			logger.Errorln(err)
 			continue
 		}
 		for _, action := range actions {
-			if arrayContains(listener.EnabledEvents, action.Type) {
+			if action.ID > listener.LastActionId && arrayContains(listener.EnabledEvents, action.Type) {
 				if listener.Handler != nil {
 					listener.Handler(listener.TrelloEventCtx, action)
 					listener.TrelloEventCtx.LastActionId = action.ID

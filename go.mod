@@ -12,12 +12,17 @@ require (
 replace github.com/lus/dgc v1.1.0 => ./pkg/dgc
 
 require (
+	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
+	github.com/inconshreveable/log15 v2.16.0+incompatible // indirect
 	github.com/karrick/tparse/v2 v2.8.2 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/stretchr/testify v1.8.2 // indirect
 	github.com/zekroTJA/timedmap v1.4.0 // indirect
 	golang.org/x/crypto v0.6.0 // indirect
 	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/term v0.5.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 )
