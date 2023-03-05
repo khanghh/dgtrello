@@ -96,3 +96,4 @@ tmp/
 build/
 bin/
 config.json
+bot.log

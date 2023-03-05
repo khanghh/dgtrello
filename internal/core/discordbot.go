@@ -46,7 +46,7 @@ func (bot *DiscordBot) Run(ctx context.Context) {
 	for _, processor := range bot.cmdProcessors {
 		err := processor.OnStartBot(bot.Session)
 		if err != nil {
-			log.Error("Could not initialize plugin", reflect.TypeOf(processor), err)
+			log.Error("Could not initialize plugin", "processor", reflect.TypeOf(processor), "error", err)
 		}
 	}
 	<-ctx.Done()
