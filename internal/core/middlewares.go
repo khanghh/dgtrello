@@ -1,4 +1,4 @@
-package discordbot
+package core
 
 import (
 	"github.com/lus/dgc"

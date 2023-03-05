@@ -2,9 +2,10 @@ package core
 
 import (
 	"context"
-	"dgtrello/internal/logger"
 	"errors"
 	"time"
+
+	log "github.com/inconshreveable/log15"
 
 	"github.com/adlio/trello"
 )
@@ -87,8 +88,7 @@ func (hub *TrelloEventHub) pollEvents() {
 		board.SetClient(hub.Client)
 		actions, err := board.GetActions(trello.Defaults())
 		if err != nil {
-			logger.Errorln("Could not get board actions. boardId:", board.ID)
-			logger.Errorln(err)
+			log.Error("Could not fetch board events", "boardId", board.ID, "err", err)
 			continue
 		}
 		for _, action := range actions {

@@ -6,10 +6,6 @@ import (
 	"log"
 )
 
-const (
-	defaultConfigFile = "config.json"
-)
-
 type ListenerConfig struct {
 	ChannelId      string   `json:"channelId"`
 	BoardId        string   `json:"boardId"`
@@ -42,7 +38,7 @@ func loadConfig(cfgFile string) (*AppConfig, error) {
 func MustLoadConfig(cfgFile string) *AppConfig {
 	conf, err := loadConfig(cfgFile)
 	if err != nil {
-		log.Fatalln("Could not parse json config file.")
+		log.Fatalln("Could not load json config file.")
 	}
 	return conf
 }

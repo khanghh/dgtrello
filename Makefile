@@ -1,16 +1,21 @@
-VERSION=$(shell git describe --tags)
+.DEFAULT_GOAL := trellobot
+BUILD_DIR=$(CURDIR)/build/bin
+
 COMMIT=$(shell git rev-parse HEAD)
 DATE=$(shell date)
+TAG=$(shell git describe --tags)
 
-LDFLAGS=-ldflags "-w -s -X 'main.Version=$(VERSION)' -X 'main.CommitHash=$(COMMIT)' -X 'main.BuiltTime=$(DATE)'"
+LDFLAGS=-ldflags "-w -s -X 'main.gitCommit=$(COMMIT)' -X 'main.gitDate=$(DATE)' main.gitTag=$(TAG)'"
 
-trellobot:
+help:
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
+trellobot: ## Build trellobot
 	@echo "Building target: $@" 
-	go build $(LDFLAGS) -o bin/$@ cmd/*.go
+	go build $(LDFLAGS) -o $(BUILD_DIR)/$@ $(CURDIR)/cmd/$@
+	@echo "Done building."
 
-clean:
-	@rm bin/*
-
-.PHONY: clean
+clean: ## Clean build directory
+	@rm -rf $(BUILD_DIR)/*
 
 all: trellobot

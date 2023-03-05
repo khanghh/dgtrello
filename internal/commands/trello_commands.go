@@ -3,7 +3,6 @@ package commands
 import (
 	"context"
 	"dgtrello/internal/core"
-	"dgtrello/internal/logger"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/adlio/trello"
 	"github.com/bwmarrin/discordgo"
+	log "github.com/inconshreveable/log15"
 	"github.com/lus/dgc"
 )
 
@@ -182,10 +182,9 @@ func (cp *TrelloCmdProcessor) OnStartBot(session *discordgo.Session) error {
 	}
 	for _, conf := range channelsCgf {
 		if err := cp.subscribeTrello(conf); err != nil {
-			logger.Errorln(fmt.Sprintf("Failed to create trello channel. channelId: %s, boardId: %s", conf.ChannelId, conf.BoardId))
-			logger.Errorln(err)
+			log.Error(fmt.Sprintf("Failed to create trello channel. channelId: %s, boardId: %s", conf.ChannelId, conf.BoardId), "error", err)
 		}
-		logger.Printf("Listening events for board: %s, channel: %s", conf.BoardId, conf.ChannelId)
+		log.Info(fmt.Sprintf("Listening events for board: %s, channel: %s", conf.BoardId, conf.ChannelId))
 	}
 	go cp.eventHub.Run(ctx)
 	return nil
@@ -204,7 +203,7 @@ func (cp *TrelloCmdProcessor) OnStopBot() {
 		channlesCfg = append(channlesCfg, &conf)
 	}
 	if err := saveChannelConfig(cp.configFile, channlesCfg); err != nil {
-		logger.Errorln("Could not save channels config", err)
+		log.Error("Could not save channels config", "error", err)
 	}
 }
 

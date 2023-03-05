@@ -1,15 +1,13 @@
-package discordbot
+package core
 
 import (
 	"context"
-	"dgtrello/internal/logger"
 	"reflect"
 
 	"github.com/bwmarrin/discordgo"
+	log "github.com/inconshreveable/log15"
 	"github.com/lus/dgc"
 )
-
-const defaultCmdPrefix = "!"
 
 type CommandProcessor interface {
 	RegisterCommands(cmdRouter *dgc.Router)
@@ -38,7 +36,7 @@ func (bot *DiscordBot) SetCmdPrefix(cmdPrefix string) {
 }
 
 func (bot *DiscordBot) Run(ctx context.Context) {
-	// bot.CmdRouter.RegisterMiddleware(restrictRolesMiddleware)
+	bot.CmdRouter.RegisterMiddleware(restrictRolesMiddleware)
 	for _, processor := range bot.cmdProcessors {
 		processor.RegisterCommands(bot.CmdRouter)
 	}
@@ -48,7 +46,7 @@ func (bot *DiscordBot) Run(ctx context.Context) {
 	for _, processor := range bot.cmdProcessors {
 		err := processor.OnStartBot(bot.Session)
 		if err != nil {
-			logger.Errorln("Could not initialize plugin", reflect.TypeOf(processor), err)
+			log.Error("Could not initialize plugin", reflect.TypeOf(processor), err)
 		}
 	}
 	<-ctx.Done()
@@ -57,7 +55,7 @@ func (bot *DiscordBot) Run(ctx context.Context) {
 	}
 }
 
-func NewDiscordBot(botToken string) (*DiscordBot, error) {
+func NewDiscordBot(botToken string, cmdPrefix string) (*DiscordBot, error) {
 	botSession, err := discordgo.New("Bot " + botToken)
 	if err != nil {
 		return nil, err
@@ -68,7 +66,7 @@ func NewDiscordBot(botToken string) (*DiscordBot, error) {
 	}
 
 	cmdRouter := &dgc.Router{
-		Prefixes: []string{defaultCmdPrefix},
+		Prefixes: []string{cmdPrefix},
 		Storage:  make(map[string]*dgc.ObjectsMap),
 	}
 	return &DiscordBot{
