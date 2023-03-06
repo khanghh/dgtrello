@@ -26,6 +26,7 @@ var (
 type TrelloEventHandler func(ctx *TrelloEventCtx, action *trello.Action)
 
 type TrelloEventCtx struct {
+	Client        *trello.Client
 	IdModel       string
 	EnabledEvents []string
 	LastActionId  string
@@ -60,6 +61,7 @@ func (hub *TrelloEventHub) Subscribe(idModel string, events []string, lastAction
 	}
 	hub.listeners[idModel] = &TrelloEventListener{
 		TrelloEventCtx: &TrelloEventCtx{
+			Client:        hub.Client,
 			IdModel:       idModel,
 			EnabledEvents: events,
 			LastActionId:  lastActionId,

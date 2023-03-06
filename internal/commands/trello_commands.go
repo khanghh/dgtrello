@@ -68,7 +68,11 @@ func saveChannelConfig(configFile string, channels []*TrelloChannelConfig) error
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(configFile, buf, 0644)
+	if err := os.WriteFile(configFile, buf, 0644); err != nil {
+		return err
+	}
+	log.Info("Saved channels config", "count", len(channels))
+	return nil
 }
 
 func (cp *TrelloCmdProcessor) subscribeTrello(conf *TrelloChannelConfig) error {
