@@ -1,3 +1,6 @@
 [submodule "pkg/dgc"]
 	path = pkg/dgc
 	url = git@github.com:khanghh/dgc.git
+[submodule "pkg/trello"]
+	path = pkg/trello
+	url = git@github.com:khanghh/trello.git

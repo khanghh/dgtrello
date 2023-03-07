@@ -2,13 +2,24 @@ package commands
 
 import (
 	"dgtrello/internal/core"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/adlio/trello"
 	"github.com/bwmarrin/discordgo"
 	log "github.com/inconshreveable/log15"
+)
+
+var (
+	eventEmbedColors = map[string]int{
+		core.EventCreateCard:       0x27ae60, // green
+		core.EventCopyCard:         0x27ae60, // cyan
+		core.EventCommentCard:      0x7f8c8d, // gray
+		core.EventDeleteCard:       0xe74c3c, // red
+		core.EventUpdateCard:       0x2980b9, // carrot
+		core.EventAddMemberToBoard: 0xf39c12, // orange
+		core.EventAddMemberToCard:  0xf39c12, // orange
+	}
 )
 
 type TrelloChannelConfig struct {
@@ -41,12 +52,7 @@ func (ch *TrelloChannel) fetchCard(client *trello.Client, cardId string) (*trell
 	})
 }
 
-func (ch *TrelloChannel) renderCardEmbed(card *trello.Card) *discordgo.MessageEmbed {
-	embedColor := 0x0099ff
-	if len(card.Labels) > 0 {
-		label := card.Labels[0]
-		embedColor = labelColors[label.Color]
-	}
+func (ch *TrelloChannel) renderCardEmbed(card *trello.Card, showCheckList bool) *discordgo.MessageEmbed {
 	// Initialize embed message with name and description field
 	fields := []*discordgo.MessageEmbedField{
 		{
@@ -56,7 +62,7 @@ func (ch *TrelloChannel) renderCardEmbed(card *trello.Card) *discordgo.MessageEm
 		},
 	}
 	// Add check lists field
-	if len(card.Checklists) > 0 {
+	if showCheckList && len(card.Checklists) > 0 {
 		for _, checklist := range card.Checklists {
 			itemsMsg := ""
 			for _, item := range checklist.CheckItems {
@@ -87,53 +93,99 @@ func (ch *TrelloChannel) renderCardEmbed(card *trello.Card) *discordgo.MessageEm
 		Inline: false,
 	})
 	// Add due date field
-	dueTimeText := "No due time"
 	if card.Due != nil {
-		dueTimeText = card.Due.String()
+		fields = append(fields, &discordgo.MessageEmbedField{
+			Name:   "🕒 Due date",
+			Value:  card.Due.String(),
+			Inline: false,
+		})
 	}
-	fields = append(fields, &discordgo.MessageEmbedField{
-		Name:   "🕒 Due date",
-		Value:  dueTimeText,
-		Inline: false,
-	})
 	return &discordgo.MessageEmbed{
 		URL:       card.ShortURL,
 		Type:      "rich",
 		Title:     card.Name,
 		Timestamp: time.Now().Format(time.RFC3339),
 		Fields:    fields,
-		Color:     embedColor,
 	}
 }
 
-func printJSON(val interface{}) {
-	buf, _ := json.MarshalIndent(val, "", "  ")
-	fmt.Println(string(buf))
-}
-
-func (ch *TrelloChannel) handleCardUpdate(ctx *core.TrelloEventCtx, action *trello.Action) error {
+func (ch *TrelloChannel) handleEventUpdateCard(ctx *core.TrelloEventCtx, action *trello.Action) error {
 	card, err := ch.fetchCard(ctx.Client, action.Data.Card.ID)
 	if err != nil {
 		return err
 	}
-	msg := ch.renderCardEmbed(card)
-	msg.Title = action.ID
-	if action.Data.ListBefore != nil && action.Data.ListAfter != nil {
+	msg := ch.renderCardEmbed(card, true)
+	msg.Color = eventEmbedColors[action.Type]
+	msg.Title = fmt.Sprintf("%s update a card", action.MemberCreator.FullName)
+	if card.Closed {
+		msg.Title = fmt.Sprintf("%s archived a card", action.MemberCreator.FullName)
+		msg.Color = eventEmbedColors[core.EventDeleteCard]
+	} else if action.Data.ListBefore != nil && action.Data.ListAfter != nil {
 		msg.Title = fmt.Sprintf(" %s moved a card to %s", action.MemberCreator.FullName, action.Data.ListAfter.Name)
 	}
+	// Add board name
 	msg.Title = fmt.Sprintf("%s - %s", msg.Title, action.Data.Board.Name)
+	_, err = ch.session.ChannelMessageSendEmbed(ch.channelId, msg)
+	return err
+}
+
+func (ch *TrelloChannel) handleEventCreateCard(ctx *core.TrelloEventCtx, action *trello.Action) error {
+	card, err := ch.fetchCard(ctx.Client, action.Data.Card.ID)
+	if err != nil {
+		return err
+	}
+	msg := ch.renderCardEmbed(card, true)
+	msg.Color = eventEmbedColors[action.Type]
+	msg.Title = fmt.Sprintf("%s created a new card", action.MemberCreator.FullName)
+	_, err = ch.session.ChannelMessageSendEmbed(ch.channelId, msg)
+	return err
+}
+
+func (ch *TrelloChannel) handleEventDeleteCard(ctx *core.TrelloEventCtx, action *trello.Action) error {
+	card, err := ch.fetchCard(ctx.Client, action.Data.Card.ID)
+	if err != nil {
+		return err
+	}
+	msg := ch.renderCardEmbed(card, true)
+	msg.Color = eventEmbedColors[action.Type]
+	msg.Title = fmt.Sprintf("%s deleted a card", action.MemberCreator.FullName)
+	_, err = ch.session.ChannelMessageSendEmbed(ch.channelId, msg)
+	return err
+}
+
+func (ch *TrelloChannel) handleEventCommentCard(ctx *core.TrelloEventCtx, action *trello.Action) error {
+	card, err := ch.fetchCard(ctx.Client, action.Data.Card.ID)
+	if err != nil {
+		return err
+	}
+	msg := ch.renderCardEmbed(card, false)
+	msg.Color = eventEmbedColors[action.Type]
+	msg.Title = fmt.Sprintf("%s commented on a card", action.MemberCreator.FullName)
+	msg.Fields = append(msg.Fields, &discordgo.MessageEmbedField{
+		Name:   fmt.Sprintf("💬 %s commented", action.MemberCreator.FullName),
+		Value:  truncateText(action.Data.Text, 1024), // maxLen 1024
+		Inline: false,
+	})
 	_, err = ch.session.ChannelMessageSendEmbed(ch.channelId, msg)
 	return err
 }
 
 func (ch *TrelloChannel) OnTrelloEvent(ctx *core.TrelloEventCtx, action *trello.Action) {
 	var err error
-	if action.Type == core.EventUpdateCard {
-		err = ch.handleCardUpdate(ctx, action)
+	switch action.Type {
+	case core.EventCreateCard:
+		err = ch.handleEventCreateCard(ctx, action)
+	case core.EventUpdateCard:
+		err = ch.handleEventUpdateCard(ctx, action)
+	case core.EventCopyCard:
+		err = ch.handleEventCreateCard(ctx, action)
+	case core.EventDeleteCard:
+		err = ch.handleEventDeleteCard(ctx, action)
+	case core.EventCommentCard:
+		err = ch.handleEventCommentCard(ctx, action)
 	}
-	// printJSON(action)
 	if err != nil {
-		ch.session.ChannelMessageSend(ch.channelId, "❌ Internal error occured, check log for more detail.")
+		ch.session.ChannelMessageSend(ch.channelId, "❌ Internal error occurred, check log for more detail.")
 		log.Error("Could not process board event", "actionId", action.ID, "error", err)
 	}
 }

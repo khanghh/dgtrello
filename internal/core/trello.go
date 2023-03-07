@@ -2,7 +2,10 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	log "github.com/inconshreveable/log15"
@@ -11,11 +14,13 @@ import (
 )
 
 const (
-	EventCreateCard  = "createCard"
-	EventCopyCard    = "copyCard"
-	EventCommentCard = "commentCard"
-	EventDeleteCard  = "deleteCard"
-	EventUpdateCard  = "updateCard"
+	EventCreateCard       = "createCard"
+	EventCopyCard         = "copyCard"
+	EventCommentCard      = "commentCard"
+	EventDeleteCard       = "deleteCard"
+	EventUpdateCard       = "updateCard"
+	EventAddMemberToBoard = "addMemberToBoard"
+	EventAddMemberToCard  = "addMemberToCard"
 )
 
 var (
@@ -75,26 +80,27 @@ func (hub *TrelloEventHub) Unsubscribe(idModel string) {
 	delete(hub.listeners, idModel)
 }
 
-func arrayContains(arr []string, str string) bool {
-	for _, item := range arr {
-		if item == str {
-			return true
-		}
-	}
-	return false
+func printJSON(val interface{}) {
+	buf, _ := json.MarshalIndent(val, "", "  ")
+	fmt.Println(string(buf))
 }
 
 func (hub *TrelloEventHub) pollEvents() {
 	for boardId, listener := range hub.listeners {
 		board := trello.Board{ID: boardId}
 		board.SetClient(hub.Client)
-		actions, err := board.GetActions(trello.Defaults())
+		actions, err := board.GetActions(trello.Arguments{
+			"filter": strings.Join(listener.EnabledEvents, ","),
+		})
+		// printJSON(actions)
 		if err != nil {
 			log.Error("Could not fetch board events", "boardId", board.ID, "err", err)
 			continue
 		}
-		for _, action := range actions {
-			if action.ID > listener.LastActionId && arrayContains(listener.EnabledEvents, action.Type) {
+
+		for idx := len(actions) - 1; idx >= 0; idx-- {
+			action := actions[idx]
+			if action.ID > listener.LastActionId {
 				if listener.Handler != nil {
 					listener.Handler(listener.TrelloEventCtx, action)
 					listener.TrelloEventCtx.LastActionId = action.ID

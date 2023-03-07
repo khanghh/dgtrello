@@ -164,12 +164,14 @@ func (cp *TrelloCmdProcessor) RegisterCommands(cmdRouter *dgc.Router) {
 		SubCommands: []*dgc.Command{
 			{
 				Name:        "subscribe",
+				Aliases:     []string{"watch"},
 				Description: "Subscribe to receive events of a board on the current channel",
 				Usage:       "trello subscribe <boardId>",
 				Handler:     cp.subscribeBoardHandler,
 			},
 			{
 				Name:        "unsubscribe",
+				Aliases:     []string{"unwatch"},
 				Description: "Unsubscribe from board events of the current channel",
 				Usage:       "trello unsubscribe",
 				Handler:     cp.unsubscribeBoardHandler,
@@ -177,6 +179,9 @@ func (cp *TrelloCmdProcessor) RegisterCommands(cmdRouter *dgc.Router) {
 		},
 		Flags: cp.allowedRoles,
 		Usage: "trello [subscribe|unsubscribe]",
+		Handler: func(ctx *dgc.Ctx) {
+			ctx.RespondText("Unknown command")
+		},
 	})
 }
 

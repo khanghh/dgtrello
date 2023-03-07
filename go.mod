@@ -5,17 +5,20 @@ go 1.18
 require (
 	github.com/adlio/trello v1.10.0
 	github.com/bwmarrin/discordgo v0.27.0
+	github.com/inconshreveable/log15 v2.16.0+incompatible
 	github.com/lus/dgc v1.1.0
 	github.com/urfave/cli/v2 v2.25.0
 )
 
-replace github.com/lus/dgc v1.1.0 => ./pkg/dgc
+replace (
+	github.com/adlio/trello v1.10.0 => ./pkg/trello
+	github.com/lus/dgc v1.1.0 => ./pkg/dgc
+)
 
 require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
-	github.com/inconshreveable/log15 v2.16.0+incompatible // indirect
 	github.com/karrick/tparse/v2 v2.8.2 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect

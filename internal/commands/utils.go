@@ -28,3 +28,10 @@ func getCardUrl(idModel string) string {
 func getBoardUrl(idModel string) string {
 	return fmt.Sprintf("%s/b/%s", trelloUrl, idModel)
 }
+
+func truncateText(str string, maxLen uint) string {
+	if len(str) <= int(maxLen) {
+		return str
+	}
+	return str[0:maxLen-3] + "..."
+}
