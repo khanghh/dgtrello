@@ -2,9 +2,7 @@ package core
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -80,11 +78,6 @@ func (hub *TrelloEventHub) Unsubscribe(idModel string) {
 	delete(hub.listeners, idModel)
 }
 
-func printJSON(val interface{}) {
-	buf, _ := json.MarshalIndent(val, "", "  ")
-	fmt.Println(string(buf))
-}
-
 func (hub *TrelloEventHub) pollEvents() {
 	for boardId, listener := range hub.listeners {
 		board := trello.Board{ID: boardId}
@@ -92,7 +85,6 @@ func (hub *TrelloEventHub) pollEvents() {
 		actions, err := board.GetActions(trello.Arguments{
 			"filter": strings.Join(listener.EnabledEvents, ","),
 		})
-		// printJSON(actions)
 		if err != nil {
 			log.Error("Could not fetch board events", "boardId", board.ID, "err", err)
 			continue

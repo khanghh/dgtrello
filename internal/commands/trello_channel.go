@@ -31,6 +31,7 @@ type TrelloChannelConfig struct {
 
 type TrelloChannel struct {
 	channelId string
+	members   map[string]string
 	session   *discordgo.Session
 	listener  *core.TrelloEventListener
 }
@@ -84,7 +85,11 @@ func (ch *TrelloChannel) renderCardEmbed(card *trello.Card, showCheckList bool) 
 	if len(card.Members) > 0 {
 		membersText = ""
 		for _, member := range card.Members {
-			membersText += fmt.Sprintf("<@%s>", member.Username)
+			if userId, exist := ch.members[member.Username]; exist {
+				membersText += fmt.Sprintf("<@%s>", userId)
+			} else {
+				membersText += fmt.Sprintf("@%s ", member.Username)
+			}
 		}
 	}
 	fields = append(fields, &discordgo.MessageEmbedField{
@@ -96,7 +101,7 @@ func (ch *TrelloChannel) renderCardEmbed(card *trello.Card, showCheckList bool) 
 	if card.Due != nil {
 		fields = append(fields, &discordgo.MessageEmbedField{
 			Name:   "🕒 Due date",
-			Value:  card.Due.String(),
+			Value:  card.Due.Local().Format(time.RFC1123),
 			Inline: false,
 		})
 	}
@@ -122,6 +127,9 @@ func (ch *TrelloChannel) handleEventUpdateCard(ctx *core.TrelloEventCtx, action 
 		msg.Color = eventEmbedColors[core.EventDeleteCard]
 	} else if action.Data.ListBefore != nil && action.Data.ListAfter != nil {
 		msg.Title = fmt.Sprintf(" %s moved a card to %s", action.MemberCreator.FullName, action.Data.ListAfter.Name)
+	} else if action.Data.Old.Pos != 0 {
+		// ignore card position update
+		return nil
 	}
 	// Add board name
 	msg.Title = fmt.Sprintf("%s - %s", msg.Title, action.Data.Board.Name)

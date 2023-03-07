@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/adlio/trello"
 	"github.com/bwmarrin/discordgo"
@@ -26,52 +27,47 @@ type TrelloCmdProcessor struct {
 	allowedRoles []string
 	configFile   string
 	channels     map[string]*TrelloChannel
+	members      map[string]string
 	eventHub     *core.TrelloEventHub
 	cancelCtx    context.CancelFunc
 	mtx          sync.Mutex
 }
+type moduleConfig struct {
+	Channels []*TrelloChannelConfig `json:"channels"`
+	Members  map[string]string      `json:"members"`
+}
 
-func loadChannelConfig(configFile string) ([]*TrelloChannelConfig, error) {
-	type moduleConfig struct {
-		Channels []*TrelloChannelConfig `json:"channels"`
-	}
+func readConfig(configFile string) (*moduleConfig, error) {
 	buf, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return nil, err
 	}
-	configData := &moduleConfig{}
-	if err := json.Unmarshal(buf, configData); err != nil {
+	config := &moduleConfig{}
+	if err := json.Unmarshal(buf, config); err != nil {
 		return nil, err
 	}
-	return configData.Channels, nil
+	return config, nil
 }
 
-func unmarshalToMap(data []byte) (map[string]interface{}, error) {
-	ret := make(map[string]interface{})
-	if err := json.Unmarshal(data, &ret); err != nil {
-		return nil, err
-	}
-	return ret, nil
-}
-
-func saveChannelConfig(configFile string, channels []*TrelloChannelConfig) error {
+func writeConfig(configFile string, newConfig *moduleConfig) error {
 	buf, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return err
 	}
-	config, err := unmarshalToMap(buf)
+	appConfig, err := unmarshalToMap(buf)
 	if err != nil {
 		return err
 	}
-	config["channels"] = channels
-	buf, err = json.MarshalIndent(config, "", " ")
+	appConfig["channels"] = newConfig.Channels
+	appConfig["members"] = newConfig.Members
+	buf, err = json.MarshalIndent(appConfig, "", "  ")
 	if err != nil {
 		return err
 	}
 	if err := os.WriteFile(configFile, buf, 0644); err != nil {
 		return err
 	}
-	log.Info("Saved channels config", "count", len(channels))
+	log.Info("Config file saved", "channels", len(newConfig.Channels), "members", len(newConfig.Members))
 	return nil
 }
 
@@ -84,6 +80,7 @@ func (cp *TrelloCmdProcessor) subscribeTrello(conf *TrelloChannelConfig) error {
 	channel := &TrelloChannel{
 		channelId: conf.ChannelId,
 		session:   cp.botSession,
+		members:   cp.members,
 	}
 	listener, err := cp.eventHub.Subscribe(conf.BoardId, conf.EnabledEvents, conf.LastActionId, channel.OnTrelloEvent)
 	if err != nil {
@@ -117,8 +114,7 @@ func (cp *TrelloCmdProcessor) getChannelByBoardId(boardId string) *TrelloChannel
 }
 
 func (cp *TrelloCmdProcessor) subscribeBoardHandler(ctx *dgc.Ctx) {
-	argBoardId := ctx.Arguments.Get(0)
-	boardId := argBoardId.Raw()
+	boardId := ctx.Arguments.Get(0).Raw()
 	_, err := cp.eventHub.Client.GetBoard(boardId, trello.Defaults())
 	if err != nil {
 		ctx.RespondText(fmt.Sprintf("Could not find board %s", boardId))
@@ -157,6 +153,27 @@ func (cp *TrelloCmdProcessor) unsubscribeBoardHandler(ctx *dgc.Ctx) {
 	ctx.RespondText("Not watching any board")
 }
 
+func (cp *TrelloCmdProcessor) memaddHandler(ctx *dgc.Ctx) {
+	trelloUsername := ctx.Arguments.Get(0).Raw()
+	discordUser := ctx.Arguments.Get(1).Raw()
+	if userId, ok := parseUserId(discordUser); len(trelloUsername) > 0 && ok {
+		cp.members[trelloUsername] = userId
+		ctx.RespondText(fmt.Sprintf("Linked trello username `%s` to user <@%s>", trelloUsername, userId))
+		return
+	}
+	ctx.RespondText("❌ Invalid arguments provided.")
+}
+
+func (cp *TrelloCmdProcessor) memdelHandler(ctx *dgc.Ctx) {
+	trelloUsername := ctx.Arguments.Get(0).Raw()
+	if userId, ok := cp.members[trelloUsername]; ok {
+		delete(cp.members, trelloUsername)
+		ctx.RespondText(fmt.Sprintf("Unlinked trello username `%s` from user <@%s>", trelloUsername, userId))
+		return
+	}
+	ctx.RespondText("❌ Trello username not linked with any discord user.")
+}
+
 func (cp *TrelloCmdProcessor) RegisterCommands(cmdRouter *dgc.Router) {
 	cmdRouter.RegisterCmd(&dgc.Command{
 		Name:        "trello",
@@ -164,17 +181,30 @@ func (cp *TrelloCmdProcessor) RegisterCommands(cmdRouter *dgc.Router) {
 		SubCommands: []*dgc.Command{
 			{
 				Name:        "subscribe",
-				Aliases:     []string{"watch"},
+				Aliases:     []string{"sub"},
 				Description: "Subscribe to receive events of a board on the current channel",
 				Usage:       "trello subscribe <boardId>",
 				Handler:     cp.subscribeBoardHandler,
 			},
 			{
 				Name:        "unsubscribe",
-				Aliases:     []string{"unwatch"},
+				Aliases:     []string{"unsub"},
 				Description: "Unsubscribe from board events of the current channel",
 				Usage:       "trello unsubscribe",
 				Handler:     cp.unsubscribeBoardHandler,
+			},
+			{
+				Name:        "memadd",
+				Aliases:     []string{"memreg"},
+				Description: "Add trello username to board",
+				Usage:       "trello addmem <trello username> <discord user>",
+				Handler:     cp.memaddHandler,
+			},
+			{
+				Name:        "memdel",
+				Description: "Remove trello username from board",
+				Usage:       "trello delmem <trello username> <discord user>",
+				Handler:     cp.memdelHandler,
 			},
 		},
 		Flags: cp.allowedRoles,
@@ -185,26 +215,8 @@ func (cp *TrelloCmdProcessor) RegisterCommands(cmdRouter *dgc.Router) {
 	})
 }
 
-func (cp *TrelloCmdProcessor) OnStartBot(session *discordgo.Session) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	cp.cancelCtx = cancel
-	cp.botSession = session
-	channelsCgf, err := loadChannelConfig(cp.configFile)
-	if err != nil {
-		return err
-	}
-	for _, conf := range channelsCgf {
-		if err := cp.subscribeTrello(conf); err != nil {
-			log.Error(fmt.Sprintf("Failed to create trello channel. channelId: %s, boardId: %s", conf.ChannelId, conf.BoardId), "error", err)
-		}
-	}
-	go cp.eventHub.Run(ctx)
-	return nil
-}
-
-func (cp *TrelloCmdProcessor) OnStopBot() {
-	cp.cancelCtx()
-	channlesCfg := []*TrelloChannelConfig{}
+func (cp *TrelloCmdProcessor) saveConfig() {
+	channels := []*TrelloChannelConfig{}
 	for _, channel := range cp.channels {
 		conf := TrelloChannelConfig{
 			ChannelId:     channel.ChannelId(),
@@ -212,11 +224,46 @@ func (cp *TrelloCmdProcessor) OnStopBot() {
 			EnabledEvents: channel.listener.EnabledEvents,
 			LastActionId:  channel.listener.LastActionId,
 		}
-		channlesCfg = append(channlesCfg, &conf)
+		channels = append(channels, &conf)
 	}
-	if err := saveChannelConfig(cp.configFile, channlesCfg); err != nil {
+	if err := writeConfig(cp.configFile, &moduleConfig{channels, cp.members}); err != nil {
 		log.Error("Could not save channels config", "error", err)
 	}
+}
+
+func (cp *TrelloCmdProcessor) saveLoop(ctx context.Context) {
+	for {
+		select {
+		case <-time.After(1 * time.Minute):
+			cp.saveConfig()
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (cp *TrelloCmdProcessor) OnStartBot(session *discordgo.Session) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	cp.cancelCtx = cancel
+	cp.botSession = session
+	config, err := readConfig(cp.configFile)
+	if err != nil {
+		return err
+	}
+	cp.members = config.Members
+	for _, conf := range config.Channels {
+		if err := cp.subscribeTrello(conf); err != nil {
+			log.Error(fmt.Sprintf("Failed to create trello channel. channelId: %s, boardId: %s", conf.ChannelId, conf.BoardId), "error", err)
+		}
+	}
+	go cp.eventHub.Run(ctx)
+	go cp.saveLoop(ctx)
+	return nil
+}
+
+func (cp *TrelloCmdProcessor) OnStopBot() {
+	cp.cancelCtx()
+	cp.saveConfig()
 }
 
 func (cp *TrelloCmdProcessor) SetAllowedRoles(roles []string) {

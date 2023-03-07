@@ -36,7 +36,7 @@ func (bot *DiscordBot) SetCmdPrefix(cmdPrefix string) {
 }
 
 func (bot *DiscordBot) Run(ctx context.Context) {
-	// bot.CmdRouter.RegisterMiddleware(restrictRolesMiddleware)
+	bot.CmdRouter.RegisterMiddleware(restrictRolesMiddleware)
 	for _, processor := range bot.cmdProcessors {
 		processor.RegisterCommands(bot.CmdRouter)
 	}

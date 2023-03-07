@@ -1,6 +1,6 @@
 package commands
 
-import "fmt"
+import "encoding/json"
 
 const (
 	trelloUrl = "https://trello.com"
@@ -21,12 +21,19 @@ var (
 	}
 )
 
-func getCardUrl(idModel string) string {
-	return fmt.Sprintf("%s/c/%s", trelloUrl, idModel)
+func unmarshalToMap(data []byte) (map[string]interface{}, error) {
+	ret := make(map[string]interface{})
+	if err := json.Unmarshal(data, &ret); err != nil {
+		return nil, err
+	}
+	return ret, nil
 }
 
-func getBoardUrl(idModel string) string {
-	return fmt.Sprintf("%s/b/%s", trelloUrl, idModel)
+func parseUserId(str string) (string, bool) {
+	if len(str) > 3 && str[0:2] == "<@" && str[len(str)-1:] == ">" {
+		return str[2 : len(str)-1], true
+	}
+	return "", false
 }
 
 func truncateText(str string, maxLen uint) string {
