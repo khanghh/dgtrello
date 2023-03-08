@@ -1,15 +1,27 @@
 {
-  "cmdPrefix": "!",
-  "discordToken": "<Your discord bot token>",
-  "adminRoles": [],
-  "trelloApiKey": "<Your trello api key>",
-  "trelloToken": "<Your trello auth token>",
-  "pollInterval": 1000,
-  "listeners": [
+  "adminRoles": [
+    "<Role allowed to use the `trello` command>"
+  ],
+  "channels": [
     {
       "channelId": "<Your channel Id>",
       "boardId": "<Trello board id to listen>",
-      "enabledEvents": []
+      "enabledEvents": [
+        "createCard",
+        "copyCard",
+        "commentCard",
+        "deleteCard",
+        "updateCard"
+      ],
+      "lastActionId": "6408ceabbddcacfe1ed9ade9"
     }
-  ]
+  ],
+  "cmdPrefix": "!",
+  "discordToken": "<Your discord bot token>",
+  "members": {
+    "<trello username>": "<discord userid>"
+  },
+  "pollInterval": 1000,
+  "trelloApiKey": "<Your trello api key>",
+  "trelloToken": "<Your trello auth token>"
 }
