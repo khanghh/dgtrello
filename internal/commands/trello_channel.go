@@ -58,7 +58,7 @@ func (ch *TrelloChannel) renderCardEmbed(card *trello.Card, showCheckList bool) 
 	fields := []*discordgo.MessageEmbedField{
 		{
 			Name:   fmt.Sprintf("🪧 %s", card.Name),
-			Value:  card.Desc,
+			Value:  truncateText(card.Desc, 1024),
 			Inline: false,
 		},
 	}
@@ -194,6 +194,6 @@ func (ch *TrelloChannel) OnTrelloEvent(ctx *core.TrelloEventCtx, action *trello.
 	}
 	if err != nil {
 		ch.session.ChannelMessageSend(ch.channelId, "❌ Internal error occurred, check log for more detail.")
-		log.Error("Could not process board event", "actionId", action.ID, "error", err)
+		log.Error("Could not process board event", "actionId", action.ID, "card", action.Data.Card.ShortLink, "error", err)
 	}
 }

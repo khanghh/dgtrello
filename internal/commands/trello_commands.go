@@ -145,12 +145,19 @@ func (cp *TrelloCmdProcessor) subscribeBoardHandler(ctx *dgc.Ctx) {
 }
 
 func (cp *TrelloCmdProcessor) unsubscribeBoardHandler(ctx *dgc.Ctx) {
-	if channel, ok := cp.channels[ctx.Event.ChannelID]; ok {
+	boardId := ctx.Arguments.Get(0).Raw()
+	var channel *TrelloChannel
+	if boardId != "" {
+		channel = cp.getChannelByBoardId(boardId)
+	} else {
+		channel = cp.channels[ctx.Event.ChannelID]
+	}
+	if channel != nil {
 		cp.unsubscribeTrello(channel.ChannelId())
 		ctx.RespondText("OK!")
 		return
 	}
-	ctx.RespondText("Not watching any board")
+	ctx.RespondText("❌ Trello board not found.")
 }
 
 func (cp *TrelloCmdProcessor) memaddHandler(ctx *dgc.Ctx) {
@@ -176,42 +183,31 @@ func (cp *TrelloCmdProcessor) memdelHandler(ctx *dgc.Ctx) {
 
 func (cp *TrelloCmdProcessor) RegisterCommands(cmdRouter *dgc.Router) {
 	cmdRouter.RegisterCmd(&dgc.Command{
-		Name:        "trello",
-		Description: "Bot commands for trello",
-		SubCommands: []*dgc.Command{
-			{
-				Name:        "subscribe",
-				Aliases:     []string{"sub"},
-				Description: "Subscribe to receive events of a board on the current channel",
-				Usage:       "trello subscribe <boardId>",
-				Handler:     cp.subscribeBoardHandler,
-			},
-			{
-				Name:        "unsubscribe",
-				Aliases:     []string{"unsub"},
-				Description: "Unsubscribe from board events of the current channel",
-				Usage:       "trello unsubscribe",
-				Handler:     cp.unsubscribeBoardHandler,
-			},
-			{
-				Name:        "memadd",
-				Aliases:     []string{"memreg"},
-				Description: "Add trello username to board",
-				Usage:       "trello memadd <trello username> <discord user>",
-				Handler:     cp.memaddHandler,
-			},
-			{
-				Name:        "memdel",
-				Description: "Remove trello username from board",
-				Usage:       "trello memdel <trello username> <discord user>",
-				Handler:     cp.memdelHandler,
-			},
-		},
-		Flags: cp.allowedRoles,
-		Usage: "trello [subscribe|unsubscribe]",
-		Handler: func(ctx *dgc.Ctx) {
-			ctx.RespondText("Unknown command")
-		},
+		Name:        "subscribe",
+		Aliases:     []string{"sub"},
+		Description: "Subscribe to receive events of a board on the current channel",
+		Usage:       "subscribe <boardId>",
+		Handler:     cp.subscribeBoardHandler,
+	})
+	cmdRouter.RegisterCmd(&dgc.Command{
+		Name:        "unsubscribe",
+		Aliases:     []string{"unsub"},
+		Description: "Unsubscribe from board events of the current channel",
+		Usage:       "unsubscribe [boardId]",
+		Handler:     cp.unsubscribeBoardHandler,
+	})
+	cmdRouter.RegisterCmd(&dgc.Command{
+		Name:        "memadd",
+		Aliases:     []string{"memreg"},
+		Description: "Add trello username to board",
+		Usage:       "memadd <trello username> <discord user>",
+		Handler:     cp.memaddHandler,
+	})
+	cmdRouter.RegisterCmd(&dgc.Command{
+		Name:        "memdel",
+		Description: "Remove trello username from board",
+		Usage:       "memdel <trello username> <discord user>",
+		Handler:     cp.memdelHandler,
 	})
 }
 
